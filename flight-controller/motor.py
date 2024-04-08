@@ -28,7 +28,16 @@ class EscMotor(BaseMotor):
     # MIN ESC SPEED
     MIN_THROTTLE = 650
 
-    def pwm(self, throttle: int, calibrated: bool = True, snooze=0):
+    @classmethod
+    def throttle_pct_pwm(cls, pct: float) -> int:
+        """ Get PWM Throttle from percentage (0.0, 100.0) """
+        pct /= 100.0
+        diff = cls.MAX_THROTTLE - cls.MIN_THROTTLE
+        return int(cls.MIN_THROTTLE + diff * pct)
+
+    def pwm(self, pct: int, calibrated: bool = True, snooze=0):
+        throttle = self.throttle_pct_pwm(pct)
+
         if calibrated:
             throttle += self.motor_config.calibration
 
@@ -71,19 +80,39 @@ class EscMotor(BaseMotor):
 
 
 class ServoMotor(BaseMotor):
-    MIN_ANGLE = 0
-    MAX_ANGLE = 180
+    def goto(self, pct: int, calibrated: bool = True):
+        angle = pct * 1.8
 
-    def pwm(self, angle: int, calibrated: bool = True, snooze=0):
         if calibrated:
             angle += self.motor_config.calibration
 
-        self.throttle = helpers.clamp(angle, self.MIN_ANGLE, self.MAX_ANGLE)
+        if angle < -180:
+            angle = -180
+        if angle > 180:
+            angle = 180
 
+        def servo_map(x, in_min, in_max, out_min, out_max):
+            return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+
+        value = round(servo_map(angle, -180, 180, 0, 1024))
+
+        min_val = 2500
+        max_val = 7500
+
+        if value < 0:
+            value = 0
+        if value > 1024:
+            value = 1024
+        delta = max_val - min_val
+        target = int(min_val + ((value / 1024) * delta))
+        self.throttle = target
+        self._pwm.duty_u16(self.throttle)
+
+    def pwm(self, pct: int, calibrated: bool = True, snooze=0):
         if self.motor_config.enable:
             if not self._pwm:
                 self._pwm = PWM(Pin(self.motor_config.pin), freq=50)
-            self._pwm.duty_u16(self.throttle)
+            self.goto(pct, calibrated)
 
         if snooze:
             time.sleep(snooze)

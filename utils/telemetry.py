@@ -37,7 +37,7 @@ def get_battery_percent(**kwargs):
 
 
 def get_rotation(controller=None, **kwargs):
-    if not controller:
+    if not controller or not controller.sensor:
         return '0,0,0'
     return ','.join(['%.2f' % x for x in controller.sensor.angles])
 

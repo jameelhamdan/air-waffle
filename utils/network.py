@@ -41,7 +41,6 @@ class BaseConnection:
         """
 
         # This For loop will handle if the socket sent multiple messages at once
-        print('MESSAGES', messages)
         for message in messages.split(END_CHAR):
             message = message.strip('')
 

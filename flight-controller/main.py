@@ -6,7 +6,7 @@ SHOULD RUN ON PI STARTUP and beep
 MOTOR GPIO MAPPING - CLOCK WISE
 
 
-       12           10               11
+       8            6               9
 ----- left -----|| main ||-------- right ----
 ---------------------------------------------
                ||||||||||
@@ -50,13 +50,13 @@ def connect_to_wifi():
     rp2.country('AU')
 
     wlan = network.WLAN(network.STA_IF)
-    wlan.config(hostname=config.DEFAULT_HOST)
+    # wlan.config(hostname=config.DEFAULT_HOST)
     wlan.active(True)
     wlan.connect(config.DEFAULT_WIFI_SSID, config.DEFAULT_WIFI_PASSWORD)
 
     while wlan.isconnected() == False:
         print('Waiting for wifi...')
-        utime.sleep_ms(500)
+        utime.sleep_ms(1000)
     print("Connected to", wlan.ifconfig()[0])
 
 
@@ -82,7 +82,7 @@ def setup_controller():
     global CONTROLLER
 
     print('STARTING FLIGHT CONTROLLER...')
-    CONTROLLER = controller.FixedWingController(SENSOR, main=MOTOR_MAIN, right=MOTOR_RIGHT, left=MOTOR_LEFT)
+    CONTROLLER = controller.FixedWingController(SENSOR, MOTOR_MAIN, MOTOR_RIGHT, MOTOR_LEFT)
     print('ARMING MOTORS...')
     CONTROLLER.arm_motors()
     print('FINISHED ARMING!')
@@ -99,16 +99,10 @@ def main():
 
     print('\n...\nREADY TO FLY!')
 
-    def run_controller_loop():
-        while True:
-            CONTROLLER.loop()
-            utime.sleep_ms(CONTROLLER.cycle_speed)
-
-    _thread.start_new_thread(run_controller_loop, ())
-
     while True:
         server_handler.loop()
         telemetry_handler.loop()
+        CONTROLLER.loop()
         utime.sleep_ms(telemetry_handler.cycle_speed)
 
 
@@ -131,5 +125,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         CONTROLLER.halt()
         print('\nStopping flight controller')
-
-

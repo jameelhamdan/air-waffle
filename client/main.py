@@ -20,8 +20,12 @@ EVENT_OUTPUT = '-OUTPUT-'
 EVENT_RECONNECT = '-RECONNECT-'
 EVENT_CAMERA_FEED = '-CAMERA_FEED-'
 EVENT_IP_ADDRESS_FIELD = '-EVENT_IP_ADDRESS_FIELD-'
+EVENT_CONTROL_THROTTLE = '-CONTROL-THROTTLE-'
+EVENT_CONTROL_ROTATION = '-CONTROL-ROTATION-'
+
 
 CLIENT_THREAD = None
+NETWORK_CLIENT = None
 CONTROLLER_THREAD = None
 CAMERA_THREAD = None
 
@@ -43,8 +47,17 @@ def listen_camera_func(img):
     WINDOW[EVENT_CAMERA_FEED].update(value=img.tobytes())
 
 
+def listen_controller_func(throttle: int, rotation: list[int, int, int]):
+    global NETWORK_CLIENT
+
+    if NETWORK_CLIENT:
+        NETWORK_CLIENT.send(NetworkEvent.CONTROL, helpers.encode_control(throttle, *rotation))
+    WINDOW[EVENT_CONTROL_THROTTLE].update(value=throttle)
+    WINDOW[EVENT_CONTROL_ROTATION].update(value=rotation)
+
+
 def connect(host, port):
-    global CLIENT_THREAD, CONTROLLER_THREAD, CAMERA_THREAD
+    global NETWORK_CLIENT, CLIENT_THREAD, CAMERA_THREAD
 
     # RESET THREADS
     if CLIENT_THREAD:
@@ -54,30 +67,22 @@ def connect(host, port):
             logger.error(e)
             pass
 
-    if CONTROLLER_THREAD:
-        CONTROLLER_THREAD._stop()
-
     if CAMERA_THREAD:
         CAMERA_THREAD._stop()
 
     CLIENT_THREAD = None
-    CONTROLLER_THREAD = None
     CAMERA_THREAD = None
 
     WINDOW.write_event_value(EVENT_OUTPUT, 'CONNECTING TO %s:%s' % (host, port))
     try:
-        network_client = ClientConnection(listen_client_func, host=host, port=int(port))
-        CLIENT_THREAD = threading.Thread(target=network_client.run, daemon=True)
+        NETWORK_CLIENT = ClientConnection(listen_client_func, host=host, port=int(port))
+        CLIENT_THREAD = threading.Thread(target=NETWORK_CLIENT.run, daemon=True)
         CLIENT_THREAD.start()
-        network_client.send(NetworkEvent.CONNECTED)
+        NETWORK_CLIENT.send(NetworkEvent.CONNECTED)
     except Exception as e:
         logger.error(e)
         WINDOW.write_event_value(EVENT_OUTPUT, 'CONNECTION FAILED')
         return False
-
-    controller = GamepadController(network_client.send)
-    CONTROLLER_THREAD = threading.Thread(target=controller.run, daemon=True)
-    CONTROLLER_THREAD.start()
 
     if config.CAMERA_ENABLED:
         camera_handler = camera.Client(listen_camera_func, host=host)
@@ -88,11 +93,17 @@ def connect(host, port):
 
 
 def main():
-    global WINDOW, CURRENT_HOST, CURRENT_PORT
+    global WINDOW, CURRENT_HOST, CURRENT_PORT, CONTROLLER_THREAD
 
     output_col = [
         [sg.Text('Output', font='Any 15')],
         [sg.Output(size=(65, 20), key=EVENT_OUTPUT, echo_stdout_stderr=True)]
+    ]
+
+    control_col = [
+        [sg.Text('Controller', font='Any 15')],
+        [sg.Text('Rotation: ', size=(10, None)), sg.Text('NONE', key=EVENT_CONTROL_ROTATION, size=(20, None))],
+        [sg.Text('Throttle: ', size=(10, None)), sg.Text('NONE', key=EVENT_CONTROL_THROTTLE, size=(20, None))],
     ]
 
     telemetry_col = [
@@ -106,7 +117,7 @@ def main():
         ],
         [
             sg.Column(output_col, vertical_alignment='top', pad=(0, 0)),
-            sg.Column(telemetry_col, vertical_alignment='top', pad=(0, 0)),
+            sg.Column([*control_col, *telemetry_col], vertical_alignment='top', pad=(0, 0)),
         ],
         [
             sg.InputText(default_text=CURRENT_HOST, tooltip='IP Address', key=EVENT_IP_ADDRESS_FIELD),
@@ -115,6 +126,10 @@ def main():
     ]
 
     WINDOW = sg.Window('RemoteControl', layout, finalize=True)
+
+    controller = GamepadController(listen_controller_func)
+    CONTROLLER_THREAD = threading.Thread(target=controller.run, daemon=True)
+    CONTROLLER_THREAD.start()
 
     # Event Loop
     while True:

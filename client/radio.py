@@ -24,7 +24,6 @@ class ClientConnection(BaseConnection):
     def listen(self):
         try:
             data = self._conn.recv(self.buf_size)
-            print('received data', data)
         except Exception as e:
             logger.error(e)
             print('error', e)

@@ -20,17 +20,18 @@ class MotorType:
 
 class MotorConfig:
     type: MotorType
-    enable = False
+    enable = True
     pin = 0
     calibration = 0
 
-    def __init__(self, motor_type, pin: int = 0, calibration: float = 0.0):
+    def __init__(self, motor_type, pin: int = 0, calibration: float = 0.0, enable: bool = True):
         self.type = motor_type
         self.pin = pin
         self.calibration = calibration
+        self.enable = enable
 
 
 class Motors:
-    MAIN = MotorConfig(MotorType.BRUSHLESS, 10, 0)
-    RIGHT = MotorConfig(MotorType.SERVO, 11, 0)
-    LEFT = MotorConfig(MotorType.SERVO, 12, 0)
+    MAIN = MotorConfig(MotorType.BRUSHLESS, 6, 0, False)
+    RIGHT = MotorConfig(MotorType.SERVO, 8, 0)
+    LEFT = MotorConfig(MotorType.SERVO, 9, 0)
